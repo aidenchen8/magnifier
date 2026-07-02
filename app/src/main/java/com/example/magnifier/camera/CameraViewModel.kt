@@ -87,9 +87,8 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 cameraProvider = provider
                 provider.unbindAll()
 
-                val preview = Preview.Builder()
-                    .build()
-                    .also { it.surfaceProvider = previewView.surfaceProvider }
+                val preview = Preview.Builder().build()
+                preview.setSurfaceProvider(previewView.getSurfaceProvider())
                 previewUseCase = preview
 
                 val capture = ImageCapture.Builder()

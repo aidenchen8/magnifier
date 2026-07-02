@@ -129,6 +129,7 @@ fun MagnifierScreen(viewModel: CameraViewModel) {
         }
 
         BottomControlBar(
+            modifier = Modifier.align(Alignment.BottomCenter),
             isFrozen = isFrozen,
             isTorchOn = isTorchOn,
             currentZoom = currentZoom,
@@ -163,6 +164,7 @@ private fun FocusBox(point: Offset) {
 
 @Composable
 private fun BottomControlBar(
+    modifier: Modifier = Modifier,
     isFrozen: Boolean,
     isTorchOn: Boolean,
     currentZoom: Float,
@@ -175,12 +177,11 @@ private fun BottomControlBar(
     onFilter: () -> Unit
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(120.dp)
             .background(Color.Black.copy(alpha = 0.75f))
-            .padding(horizontal = 16.dp)
-            .align(Alignment.BottomCenter),
+            .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (!isFrozen) {
