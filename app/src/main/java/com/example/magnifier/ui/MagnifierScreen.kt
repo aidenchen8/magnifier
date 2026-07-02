@@ -27,10 +27,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterBAndW
-import androidx.compose.material.icons.filled.FlashlightOff
 import androidx.compose.material.icons.filled.FlashlightOn
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
@@ -49,7 +47,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -157,7 +154,7 @@ fun MagnifierScreen(viewModel: CameraViewModel) {
                 FocusBox(point = point)
             }
 
-            GlassIconButton(
+            DarkIconButton(
                 icon = Icons.Default.Close,
                 onClick = { activity?.finish() },
                 modifier = Modifier
@@ -165,20 +162,89 @@ fun MagnifierScreen(viewModel: CameraViewModel) {
                     .padding(top = topSafePadding, end = 16.dp)
             )
 
-            GlassBottomPanel(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                bottomPadding = bottomSafePadding,
-                isFrozen = isFrozen,
-                isTorchOn = isTorchOn,
-                currentZoom = currentZoom,
-                maxZoom = maxZoom,
-                filterMode = filterMode,
-                onZoomChange = viewModel::setZoom,
-                onTorchToggle = viewModel::toggleTorch,
-                onFreezeToggle = { if (isFrozen) viewModel.unfreeze() else viewModel.freeze() },
-                onSave = viewModel::saveBitmap,
-                onFilter = viewModel::nextFilter
-            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(bottom = bottomSafePadding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (!isFrozen) {
+                    DarkCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            Text(
+                                text = "%.1fx".format(currentZoom),
+                                color = Color.White,
+                                fontSize = 24.sp,
+                                modifier = Modifier.width(72.dp)
+                            )
+                            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                                Slider(
+                                    value = currentZoom,
+                                    onValueChange = viewModel::setZoom,
+                                    valueRange = 1f..maxZoom.coerceAtLeast(1f),
+                                    steps = ((maxZoom.coerceAtLeast(1f) - 1f) * 10).roundToInt().coerceAtLeast(0),
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = Color.White,
+                                        activeTrackColor = Color.White,
+                                        inactiveTrackColor = Color.White.copy(alpha = 0.4f)
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                DarkCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 8.dp)
+                    ) {
+                        DarkControlButton(
+                            icon = Icons.Default.FlashlightOn,
+                            label = "灯光",
+                            enabled = !isFrozen,
+                            active = isTorchOn,
+                            onClick = viewModel::toggleTorch
+                        )
+                        DarkControlButton(
+                            icon = Icons.Default.CameraAlt,
+                            label = "冻结",
+                            active = isFrozen,
+                            onClick = { if (isFrozen) viewModel.unfreeze() else viewModel.freeze() }
+                        )
+                        DarkControlButton(
+                            icon = Icons.Default.Save,
+                            label = "保存",
+                            enabled = isFrozen,
+                            onClick = viewModel::saveBitmap
+                        )
+                        DarkControlButton(
+                            icon = Icons.Default.FilterBAndW,
+                            label = "模式",
+                            onClick = viewModel::nextFilter
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -228,139 +294,50 @@ private fun FocusBox(point: Offset) {
 }
 
 @Composable
-private fun GlassBottomPanel(
+private fun DarkCard(
     modifier: Modifier = Modifier,
-    bottomPadding: androidx.compose.ui.unit.Dp,
-    isFrozen: Boolean,
-    isTorchOn: Boolean,
-    currentZoom: Float,
-    maxZoom: Float,
-    filterMode: CameraViewModel.FilterMode,
-    onZoomChange: (Float) -> Unit,
-    onTorchToggle: () -> Unit,
-    onFreezeToggle: () -> Unit,
-    onSave: () -> Unit,
-    onFilter: () -> Unit
+    content: @Composable () -> Unit
 ) {
     Box(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .padding(bottom = bottomPadding)
-            .height(120.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.22f),
-                        Color.White.copy(alpha = 0.10f)
-                    )
-                )
-            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.Black.copy(alpha = 0.75f))
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.35f),
-                shape = RoundedCornerShape(28.dp)
-            )
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+                color = Color.White.copy(alpha = 0.15f),
+                shape = RoundedCornerShape(24.dp)
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            if (!isFrozen) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().height(32.dp)
-                ) {
-                    Text(
-                        text = "%.1fx".format(currentZoom),
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        modifier = Modifier.width(72.dp)
-                    )
-                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                        Slider(
-                            value = currentZoom,
-                            onValueChange = onZoomChange,
-                            valueRange = 1f..maxZoom.coerceAtLeast(1f),
-                            steps = ((maxZoom.coerceAtLeast(1f) - 1f) * 10).roundToInt().coerceAtLeast(0),
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                                activeTrackColor = Color.White,
-                                inactiveTrackColor = Color.White.copy(alpha = 0.4f)
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-
-            Row(
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            ) {
-                GlassIconButton(
-                    icon = if (isTorchOn) Icons.Default.FlashlightOff else Icons.Default.FlashlightOn,
-                    label = if (isTorchOn) "关灯" else "开灯",
-                    enabled = !isFrozen,
-                    onClick = onTorchToggle
-                )
-                GlassIconButton(
-                    icon = if (isFrozen) Icons.Default.Videocam else Icons.Default.CameraAlt,
-                    label = if (isFrozen) "解冻" else "冻结",
-                    onClick = onFreezeToggle
-                )
-                GlassIconButton(
-                    icon = Icons.Default.Save,
-                    label = "保存",
-                    enabled = isFrozen,
-                    onClick = onSave
-                )
-                GlassIconButton(
-                    icon = Icons.Default.FilterBAndW,
-                    label = when (filterMode) {
-                        CameraViewModel.FilterMode.NORMAL -> "正常"
-                        CameraViewModel.FilterMode.HIGH_CONTRAST -> "黑白"
-                        CameraViewModel.FilterMode.YELLOW_BLACK -> "黄黑"
-                    },
-                    onClick = onFilter
-                )
-            }
-        }
+        content()
     }
 }
 
 @Composable
-private fun GlassIconButton(
+private fun DarkControlButton(
     icon: ImageVector,
-    label: String? = null,
+    label: String,
     enabled: Boolean = true,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    active: Boolean = false,
+    onClick: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val alpha = if (enabled) 1f else 0.4f
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.alpha(alpha)
+        modifier = Modifier.alpha(alpha)
     ) {
         Box(
             modifier = Modifier
                 .size(64.dp)
                 .clip(CircleShape)
                 .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.28f),
-                            Color.White.copy(alpha = 0.10f)
-                        )
-                    )
+                    if (active) Color.White.copy(alpha = 0.25f)
+                    else Color.Black.copy(alpha = 0.4f)
                 )
                 .border(
                     width = 1.dp,
-                    color = Color.White.copy(alpha = 0.35f),
+                    color = Color.White.copy(alpha = 0.2f),
                     shape = CircleShape
                 )
                 .clickable(enabled = enabled) {
@@ -376,13 +353,43 @@ private fun GlassIconButton(
                 modifier = Modifier.size(32.dp)
             )
         }
-        if (label != null) {
-            Text(
-                text = label,
-                color = Color.White,
-                fontSize = 16.sp,
-                modifier = Modifier.padding(top = 2.dp)
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 16.sp,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+    }
+}
+
+@Composable
+private fun DarkIconButton(
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    Box(
+        modifier = modifier
+            .size(56.dp)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.75f))
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.15f),
+                shape = CircleShape
             )
-        }
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(28.dp)
+        )
     }
 }
