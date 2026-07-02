@@ -1,32 +1,41 @@
 package com.example.magnifier.ui
 
+import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterBAndW
 import androidx.compose.material.icons.filled.FlashlightOff
 import androidx.compose.material.icons.filled.FlashlightOn
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -37,9 +46,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -62,12 +74,13 @@ import kotlin.math.roundToInt
 @Composable
 fun MagnifierScreen(viewModel: CameraViewModel) {
     val context = LocalContext.current
+    val activity = context as? Activity
     val lifecycleOwner = LocalLifecycleOwner.current
     val view = LocalView.current
+    val density = LocalDensity.current
 
-    // Hide system bars for this screen.
     DisposableEffect(view) {
-        val window = (view.context as? android.app.Activity)?.window
+        val window = (view.context as? Activity)?.window
         window?.let {
             WindowCompat.setDecorFitsSystemWindows(it, false)
             WindowInsetsControllerCompat(it, it.decorView).apply {
@@ -78,6 +91,12 @@ fun MagnifierScreen(viewModel: CameraViewModel) {
         }
         onDispose { }
     }
+
+    val gestureInsets = WindowInsets.systemGestures.asPaddingValues()
+    val topInset = with(density) { gestureInsets.calculateTopPadding() }
+    val bottomInset = with(density) { gestureInsets.calculateBottomPadding() }
+    val topSafePadding = topInset + 16.dp
+    val bottomSafePadding = bottomInset + 16.dp
 
     val maxZoom by viewModel.maxZoom.collectAsState()
     val currentZoom by viewModel.currentZoom.collectAsState()
@@ -99,50 +118,95 @@ fun MagnifierScreen(viewModel: CameraViewModel) {
         onDispose { viewModel.unbindCamera() }
     }
 
+    DisposableEffect(filterMode, isFrozen, previewView) {
+        if (!isFrozen && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            previewView.setRenderEffect(renderEffectForMode(filterMode))
+        } else {
+            previewView.setRenderEffect(null)
+        }
+        onDispose { previewView.setRenderEffect(null) }
+    }
+
     MaterialTheme(colorScheme = darkColorScheme()) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        if (!isFrozen) {
-            AndroidView(
-                factory = { previewView },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectTapGestures { offset ->
-                            viewModel.focus(offset.x, offset.y, previewView)
+            if (!isFrozen) {
+                AndroidView(
+                    factory = { previewView },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTapGestures { offset ->
+                                viewModel.focus(offset.x, offset.y, previewView)
+                            }
                         }
-                    }
-            )
-        } else {
-            frozenBitmap?.let { bitmap ->
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    colorFilter = viewModel.colorFilter(),
-                    modifier = Modifier.fillMaxSize()
                 )
+            } else {
+                frozenBitmap?.let { bitmap ->
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        colorFilter = viewModel.colorFilter(),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
-        }
 
-        focusPoint?.let { point ->
-            FocusBox(point = point)
-        }
+            focusPoint?.let { point ->
+                FocusBox(point = point)
+            }
 
-        BottomControlBar(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            isFrozen = isFrozen,
-            isTorchOn = isTorchOn,
-            currentZoom = currentZoom,
-            maxZoom = maxZoom,
-            filterMode = filterMode,
-            onZoomChange = viewModel::setZoom,
-            onTorchToggle = viewModel::toggleTorch,
-            onFreezeToggle = { if (isFrozen) viewModel.unfreeze() else viewModel.freeze() },
-            onSave = viewModel::saveBitmap,
-            onFilter = viewModel::nextFilter
-        )
+            GlassIconButton(
+                icon = Icons.Default.Close,
+                onClick = { activity?.finish() },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = topSafePadding, end = 16.dp)
+            )
+
+            GlassBottomPanel(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                bottomPadding = bottomSafePadding,
+                isFrozen = isFrozen,
+                isTorchOn = isTorchOn,
+                currentZoom = currentZoom,
+                maxZoom = maxZoom,
+                filterMode = filterMode,
+                onZoomChange = viewModel::setZoom,
+                onTorchToggle = viewModel::toggleTorch,
+                onFreezeToggle = { if (isFrozen) viewModel.unfreeze() else viewModel.freeze() },
+                onSave = viewModel::saveBitmap,
+                onFilter = viewModel::nextFilter
+            )
         }
     }
+}
+
+private fun renderEffectForMode(mode: CameraViewModel.FilterMode): android.graphics.RenderEffect? {
+    if (mode == CameraViewModel.FilterMode.NORMAL) return null
+    val matrix = android.graphics.ColorMatrix()
+    when (mode) {
+        CameraViewModel.FilterMode.HIGH_CONTRAST -> matrix.set(
+            floatArrayOf(
+                -1f, 0f, 0f, 0f, 255f,
+                0f, -1f, 0f, 0f, 255f,
+                0f, 0f, -1f, 0f, 255f,
+                0f, 0f, 0f, 1f, 0f
+            )
+        )
+        CameraViewModel.FilterMode.YELLOW_BLACK -> matrix.set(
+            floatArrayOf(
+                0.299f, 0.587f, 0.114f, 0f, 0f,
+                0.299f, 0.587f, 0.114f, 0f, 0f,
+                0f, 0f, 0f, 0f, 0f,
+                0f, 0f, 0f, 1f, 0f
+            )
+        )
+        else -> return null
+    }
+    return android.graphics.RenderEffect.createColorFilterEffect(
+        android.graphics.ColorMatrixColorFilter(matrix)
+    )
 }
 
 @Composable
@@ -163,8 +227,9 @@ private fun FocusBox(point: Offset) {
 }
 
 @Composable
-private fun BottomControlBar(
+private fun GlassBottomPanel(
     modifier: Modifier = Modifier,
+    bottomPadding: androidx.compose.ui.unit.Dp,
     isFrozen: Boolean,
     isTorchOn: Boolean,
     currentZoom: Float,
@@ -176,101 +241,147 @@ private fun BottomControlBar(
     onSave: () -> Unit,
     onFilter: () -> Unit
 ) {
-    Column(
+    Box(
         modifier = modifier
             .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = bottomPadding)
             .height(120.dp)
-            .background(Color.Black.copy(alpha = 0.75f))
-            .padding(horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        if (!isFrozen) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().height(32.dp)
-            ) {
-                Text(
-                    text = "%.1fx".format(currentZoom),
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    modifier = Modifier.width(72.dp)
-                )
-                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                    Slider(
-                        value = currentZoom,
-                        onValueChange = onZoomChange,
-                        valueRange = 1f..maxZoom.coerceAtLeast(1f),
-                        steps = ((maxZoom.coerceAtLeast(1f) - 1f) * 10).roundToInt().coerceAtLeast(0),
-                        modifier = Modifier.weight(1f)
+            .clip(RoundedCornerShape(28.dp))
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.22f),
+                        Color.White.copy(alpha = 0.10f)
                     )
+                )
+            )
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.35f),
+                shape = RoundedCornerShape(28.dp)
+            )
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (!isFrozen) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().height(32.dp)
+                ) {
+                    Text(
+                        text = "%.1fx".format(currentZoom),
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        modifier = Modifier.width(72.dp)
+                    )
+                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                        Slider(
+                            value = currentZoom,
+                            onValueChange = onZoomChange,
+                            valueRange = 1f..maxZoom.coerceAtLeast(1f),
+                            steps = ((maxZoom.coerceAtLeast(1f) - 1f) * 10).roundToInt().coerceAtLeast(0),
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.White,
+                                activeTrackColor = Color.White,
+                                inactiveTrackColor = Color.White.copy(alpha = 0.4f)
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
-        }
 
-        Row(
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().weight(1f)
-        ) {
-            ControlButton(
-                icon = if (isTorchOn) Icons.Default.FlashlightOff else Icons.Default.FlashlightOn,
-                label = if (isTorchOn) "关灯" else "开灯",
-                enabled = !isFrozen,
-                onClick = onTorchToggle
-            )
-            ControlButton(
-                icon = if (isFrozen) Icons.Default.Videocam else Icons.Default.CameraAlt,
-                label = if (isFrozen) "解冻" else "冻结",
-                onClick = onFreezeToggle
-            )
-            ControlButton(
-                icon = Icons.Default.Save,
-                label = "保存",
-                enabled = isFrozen,
-                onClick = onSave
-            )
-            ControlButton(
-                icon = Icons.Default.FilterBAndW,
-                label = when (filterMode) {
-                    CameraViewModel.FilterMode.NORMAL -> "正常"
-                    CameraViewModel.FilterMode.HIGH_CONTRAST -> "黑白"
-                    CameraViewModel.FilterMode.YELLOW_BLACK -> "黄黑"
-                },
-                enabled = isFrozen,
-                onClick = onFilter
-            )
+            Row(
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            ) {
+                GlassIconButton(
+                    icon = if (isTorchOn) Icons.Default.FlashlightOff else Icons.Default.FlashlightOn,
+                    label = if (isTorchOn) "关灯" else "开灯",
+                    enabled = !isFrozen,
+                    onClick = onTorchToggle
+                )
+                GlassIconButton(
+                    icon = if (isFrozen) Icons.Default.Videocam else Icons.Default.CameraAlt,
+                    label = if (isFrozen) "解冻" else "冻结",
+                    onClick = onFreezeToggle
+                )
+                GlassIconButton(
+                    icon = Icons.Default.Save,
+                    label = "保存",
+                    enabled = isFrozen,
+                    onClick = onSave
+                )
+                GlassIconButton(
+                    icon = Icons.Default.FilterBAndW,
+                    label = when (filterMode) {
+                        CameraViewModel.FilterMode.NORMAL -> "正常"
+                        CameraViewModel.FilterMode.HIGH_CONTRAST -> "黑白"
+                        CameraViewModel.FilterMode.YELLOW_BLACK -> "黄黑"
+                    },
+                    onClick = onFilter
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun ControlButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
+private fun GlassIconButton(
+    icon: ImageVector,
+    label: String? = null,
     enabled: Boolean = true,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        IconButton(
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                onClick()
-            },
-            enabled = enabled,
-            modifier = Modifier.size(64.dp)
+    val alpha = if (enabled) 1f else 0.4f
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.alpha(alpha)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.28f),
+                            Color.White.copy(alpha = 0.10f)
+                        )
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.35f),
+                    shape = CircleShape
+                )
+                .clickable(enabled = enabled) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onClick()
+                },
+            contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = if (enabled) Color.White else Color(0x80FFFFFF),
+                tint = Color.White,
                 modifier = Modifier.size(32.dp)
             )
         }
-        Text(
-            text = label,
-            color = if (enabled) Color.White else Color(0x80FFFFFF),
-            fontSize = 16.sp
-        )
+        if (label != null) {
+            Text(
+                text = label,
+                color = Color.White,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
     }
 }
