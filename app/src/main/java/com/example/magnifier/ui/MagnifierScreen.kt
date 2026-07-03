@@ -6,7 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,9 +48,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.calculateZoom
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -133,9 +138,14 @@ fun MagnifierScreen(viewModel: CameraViewModel) {
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) {
-                            detectTapGestures { offset ->
-                                viewModel.focus(offset.x, offset.y, previewView)
-                            }
+                            detectTapAndPinchGestures(
+                                onTap = { offset ->
+                                    viewModel.focus(offset.x, offset.y, previewView)
+                                },
+                                onPinch = { zoomDelta ->
+                                    viewModel.applyPinchZoom(zoomDelta)
+                                }
+                            )
                         }
                 )
             } else {
@@ -145,7 +155,21 @@ fun MagnifierScreen(viewModel: CameraViewModel) {
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         colorFilter = viewModel.colorFilter(),
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                scaleX = currentZoom
+                                scaleY = currentZoom
+                                transformOrigin = TransformOrigin.Center
+                            }
+                            .pointerInput(Unit) {
+                                detectTapAndPinchGestures(
+                                    onTap = { /* no focus when frozen */ },
+                                    onPinch = { zoomDelta ->
+                                        viewModel.applyPinchZoom(zoomDelta)
+                                    }
+                                )
+                            }
                     )
                 }
             }
@@ -156,7 +180,13 @@ fun MagnifierScreen(viewModel: CameraViewModel) {
 
             DarkIconButton(
                 icon = Icons.Default.Close,
-                onClick = { activity?.finish() },
+                onClick = {
+                    if (isFrozen) {
+                        viewModel.unfreeze()
+                    } else {
+                        activity?.finish()
+                    }
+                },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = topSafePadding, end = 16.dp)
@@ -170,38 +200,36 @@ fun MagnifierScreen(viewModel: CameraViewModel) {
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (!isFrozen) {
-                    DarkCard(
+                DarkCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp)
-                        ) {
-                            Text(
-                                text = "%.1fx".format(currentZoom),
-                                color = Color.White,
-                                fontSize = 24.sp,
-                                modifier = Modifier.width(72.dp)
+                        Text(
+                            text = "%.1fx".format(currentZoom),
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            modifier = Modifier.width(72.dp)
+                        )
+                        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                            Slider(
+                                value = currentZoom,
+                                onValueChange = viewModel::setZoom,
+                                valueRange = 1f..maxZoom.coerceAtLeast(1f),
+                                steps = ((maxZoom.coerceAtLeast(1f) - 1f) * 10).roundToInt().coerceAtLeast(0),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color.White,
+                                    activeTrackColor = Color.White,
+                                    inactiveTrackColor = Color.White.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier.weight(1f)
                             )
-                            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                                Slider(
-                                    value = currentZoom,
-                                    onValueChange = viewModel::setZoom,
-                                    valueRange = 1f..maxZoom.coerceAtLeast(1f),
-                                    steps = ((maxZoom.coerceAtLeast(1f) - 1f) * 10).roundToInt().coerceAtLeast(0),
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = Color.White,
-                                        activeTrackColor = Color.White,
-                                        inactiveTrackColor = Color.White.copy(alpha = 0.4f)
-                                    ),
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
                         }
                     }
                 }
@@ -243,6 +271,53 @@ fun MagnifierScreen(viewModel: CameraViewModel) {
                             onClick = viewModel::nextFilter
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+private suspend fun PointerInputScope.detectTapAndPinchGestures(
+    onTap: (Offset) -> Unit,
+    onPinch: (Float) -> Unit
+) {
+    awaitPointerEventScope {
+        while (true) {
+            val down = awaitFirstDown()
+            val initialPosition = down.position
+            val initialTime = down.uptimeMillis
+
+            var isPinch = false
+            var pinchStarted = false
+            var event: PointerEvent
+
+            do {
+                event = awaitPointerEvent()
+                val pressedCount = event.changes.count { it.pressed }
+
+                if (pressedCount >= 2) {
+                    if (!isPinch) {
+                        isPinch = true
+                        pinchStarted = false
+                    } else {
+                        val zoom = event.calculateZoom()
+                        if (pinchStarted) {
+                            onPinch(zoom)
+                        }
+                        pinchStarted = true
+                    }
+                }
+            } while (event.changes.any { it.pressed })
+
+            if (!isPinch) {
+                val change = event.changes.firstOrNull()
+                val duration = (change?.uptimeMillis ?: initialTime) - initialTime
+                val finalPosition = change?.position ?: initialPosition
+                val distance = (finalPosition - initialPosition).getDistance()
+                if (duration < viewConfiguration.longPressTimeoutMillis &&
+                    distance < viewConfiguration.touchSlop
+                ) {
+                    onTap(initialPosition)
                 }
             }
         }

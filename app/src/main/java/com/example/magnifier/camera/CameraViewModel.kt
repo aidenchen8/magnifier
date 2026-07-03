@@ -140,6 +140,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         cam.cameraControl.setZoomRatio(clamped)
     }
 
+    fun applyPinchZoom(zoomDelta: Float) {
+        val cam = camera ?: return
+        val max = cam.cameraInfo.zoomState.value?.maxZoomRatio ?: _maxZoom.value
+        val target = (_currentZoom.value * zoomDelta).coerceIn(1f, max)
+        cam.cameraControl.setZoomRatio(target)
+    }
+
     fun toggleTorch() {
         val newState = !_isTorchOn.value
         _isTorchOn.value = newState
