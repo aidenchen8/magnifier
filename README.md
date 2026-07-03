@@ -1,48 +1,50 @@
-# 老人放大镜 (Magnifier)
+> [中文文档](README-ZH.md).
 
-一个专为家中老人设计的极简 Android 放大镜应用。
+# Magnifier
 
-- 打开即用，界面简单，按钮大、字大、对比度高。
-- 利用手机后置摄像头实时放大远处或细小的文字、物品。
-- 支持对焦、闪光灯补光、冻结画面和保存截图。
+A minimalist Android magnifier app designed for seniors.
 
-## 下载 APK
+- Open and use instantly, with a simple UI: large buttons, large text, and high contrast.
+- Uses the rear camera to magnify distant or small text and objects in real time.
+- Supports tap-to-focus, flashlight fill-light, freeze frame, and save screenshot.
 
-本项目使用 GitHub Actions 云端编译，无需本地安装 Android Studio。
+## Download APK
 
-1. 打开本仓库的 **Actions** 标签页。
-2. 选择最新的 **Build Magnifier Debug APK** 工作流。
-3. 在运行结果中找到 **Artifacts** 区域。
-4. 下载名为 `magnifier-debug` 的压缩包，解压后得到 `app-debug.apk`。
+This project is built in the cloud using GitHub Actions, so you don't need to install Android Studio locally.
 
-## 安装到手机
+1. Open the **Actions** tab of this repository.
+2. Select the latest **Build Magnifier Debug APK** workflow.
+3. Find the **Artifacts** section in the run results.
+4. Download the archive named `magnifier-debug`, extract it, and you will get `app-debug.apk`.
 
-1. 将下载的 `app-debug.apk` 传输到 Android 手机。
-2. 在手机的文件管理器中点击 APK。
-3. 若提示“禁止安装未知来源应用”，请按提示允许浏览器/文件管理器安装。
-4. 安装完成后，打开应用即可使用。
+## Install on Your Phone
 
-> 应用仅申请 **相机权限**，不会申请任何存储权限。截图会保存到手机的 `Pictures/Magnifier/` 相册目录（Android 10+ 的 Scoped Storage 机制）。
+1. Transfer the downloaded `app-debug.apk` to your Android phone.
+2. Tap the APK in your phone's file manager.
+3. If prompted "Install blocked for unknown sources", follow the on-screen instructions to allow installation from your browser or file manager.
+4. Once installed, open the app and start using it.
 
-## 功能说明
+> The app only requests **camera permission** and does not request any storage permissions. Screenshots are saved to the phone's `Pictures/Magnifier/` album directory (using Android 10+ Scoped Storage).
 
-| 功能 | 说明 |
-|------|------|
-| **放大** | 默认使用后置摄像头，拖动底部滑块调整变焦，范围 1.0x ~ 设备最大变焦。 |
-| **对焦** | 点击预览画面中央区域触发单次自动对焦，会出现黄色对焦框提示。 |
-| **闪光灯** | 点击“开灯/关灯”按钮，使用手电筒常亮补光，方便光线暗时查看。 |
-| **冻结** | 点击“冻结”按钮抓取当前画面并定格，方便仔细查看；点击“解冻”恢复实时预览。 |
-| **保存** | 仅在冻结状态下可点击“保存”，将当前画面保存到相册 `Pictures/Magnifier/`。 |
-| **模式** | 冻结后可切换正常 / 黑底白字 / 黄底黑字三种颜色滤镜，帮助低视力用户看清内容。 |
+## Features
 
-## 技术栈
+| Feature | Description |
+|---------|-------------|
+| **Magnify** | Uses the rear camera by default. Drag the bottom slider to adjust zoom from 1.0x up to the device's maximum zoom. |
+| **Focus** | Tap the center of the preview to trigger a single autofocus; a yellow focus frame will appear as feedback. |
+| **Flashlight** | Tap the "Light On / Light Off" button to keep the flashlight on for fill-light, making it easier to see in the dark. |
+| **Freeze** | Tap the "Freeze" button to capture and hold the current frame for closer inspection; tap "Unfreeze" to resume live preview. |
+| **Save** | The "Save" button is only available while frozen. Saves the current frame to the `Pictures/Magnifier/` album. |
+| **Mode** | After freezing, switch between Normal / Black background with white text / Yellow background with black text color filters to help users with low vision read content. |
+
+## Tech Stack
 
 - Kotlin 2.0+
 - Jetpack Compose (Material3)
 - CameraX 1.3.4+
 - minSdk 29 / targetSdk 35 / compileSdk 35
-- 单 Activity + 单 ViewModel，无 Hilt、Navigation、Room 等冗余依赖
+- Single Activity + single ViewModel, with no extra dependencies such as Hilt, Navigation, or Room
 
-## 开源许可
+## License
 
-MIT License — 可自由使用、修改和分发。
+MIT License — free to use, modify, and distribute.
